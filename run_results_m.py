@@ -156,9 +156,18 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                     if (item in headers) is False:
                         headers.append(item)
 
-    outfile = open(csv_file, "w")
+    print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    outfile = open("table_template.tbl", "w")
+    outfile.write("{\n")
+    for item in headers:
+        if item == "loop":
+            continue
+        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
+    outfile.write("}\n")
+    outfile.close()
 
     print("%s - ヘッダーは以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    outfile = open(csv_file, "w")
     total_file_amount = {}
     outfile.write("run_id          ,")
     for item in headers:
@@ -170,7 +179,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
 
     # 結果（JSON）の一時保存
     routfile = open("results_cach.dat", "w")
-    json.dump(results, routfile, indent=4)
+    json.dump(results, routfile, ensure_ascii=False, indent=4)
     routfile.close()
 
     print("%s - データファイル(CSV)を構築しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -291,9 +300,9 @@ def generate_dat(conffile, csv_file, dat_file):
                     logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                     logout.flush()
                     break
-                dataout = open("%s_%s,"%(aline[0], header[i]), "w")
-                #outfile.write("%s_%s,"%(aline[0], header[i]))
-                csv_line += "%s_%s,"%(aline[0], header[i])
+                dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w")
+                #outfile.write("%s_%s,"%(aline[0], headers[i]))
+                csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
                 res = session.get(aline[i])
@@ -350,6 +359,7 @@ def main():
     tablefile = None
     csv_file = None
     dat_file = None
+    thread_num = 10
     global STOP_FLAG
 
     for items in sys.argv:
@@ -372,7 +382,7 @@ def main():
                 thread_num = int(items[1])
             except:
                 therad_num = 10
-        elif items[0] == "reload":              # ランリストのキャッシュを使う
+        elif items[0] == "usecash":             # ランリストのキャッシュを使う
             load_cash = True
         elif items[0] == "help":                # ヘルプ
             command_help = True
@@ -446,16 +456,19 @@ def main():
         print("                        機械学習向けのCSVファイルを作成する。 ")
         print("                csv   : iourlモードで作成されるCSVファイルの名前")
         print("                        fileモードではiourlモードで作成したCSVとして指定する。")
-        print("              thread  : API呼び出しの並列数（デフォルト10個）")
         print("               conf   : いくつかのパラメータを書いておける便利な構成ファイル")
         print("                        README.mdを参照")
-        print("mode を iourlと指定したとき")
+        print("")
+        print("     mode を iourlと指定したとき")
         print("          workflow_id : Mで始まる15桁のワークフローID")
         print("               token  : 64文字のAPIトークン")
         print("             misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL")
         print("              siteid  : siteで＋５桁の数字。site00002など")
-        print("              reload  : 一度実行すればキャッシュが作成される。次回以降キャッシュから読み込みたい場合に指定する。")
-        print("mode を fileと指定したとき")
+        print("              thread  : API呼び出しの並列数（デフォルト10個）")
+        print("             usecash  : 次回以降キャッシュから読み込みたい場合に指定する。")
+        print("                        未指定で実行すればキャッシュは作成される。")
+        print("")
+        print("     mode を fileと指定したとき")
         print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
         print("                dat   : fileモードで作成される結果ファイル。機械学習用")
         sys.exit(1)
