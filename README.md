@@ -37,6 +37,20 @@
 * conf : 後述する。
 * table : 後述する。
 
+### 使い方の例
+* IOURL取得
+```
+$ python3.6 ~/extract_run_results/run_results_m.py token:６４文字のトークン misystem:dev-u-tokyo.mintsys.jp workflow_id:W000020000000300 mode:iourl csv:results.csv siteid:site00002
+```
+* 編集
+```
+$ vi table_template.tbl
+```
+* 機械学習データ構築
+```
+$ python3.6 ~/extract_run_results/run_results_m.py mode:file csv:results.csv table:table_template.tbl dat:W000020000000300.csv
+```
+ 
 ## confパラメータ詳細
 
 いくつかのパラメータを書いておける。現状は以下のようなパラメータに対応している。
