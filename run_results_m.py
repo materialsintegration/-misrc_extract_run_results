@@ -194,7 +194,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                     if (key in items[item]) is True:
                         #print(key)
                         if key == "loop":
-                            outfile.write("%s,"%item)                   # run_idを先頭に記入
+                            outfile.write("%d,"%int(item[1:]))                   # run_idを先頭に記入
                             outfile.write("%d"%items[item][key])
                         else:
                             if items[item][key][0] == "null":
