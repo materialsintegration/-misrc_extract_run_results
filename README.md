@@ -45,6 +45,10 @@ $ python3.6 ~/extract_run_results/run_results_m.py token:６４文字のトー�
 tokenパラメータの指定が無い場合は、ログインプロンプトで対応する。
 
 * 編集
+  + 対象ファイル
+  ```
+  $ vi table_template.tbl
+  ```
   + 編集内容
   ```
   {"<カラム名（ポート名）>":"csv", "default": None, "ext": ""}
@@ -59,10 +63,6 @@ tokenパラメータの指定が無い場合は、ログインプロンプトで
   + ext
     - カラム名の指定が、fileの時の拡張子
     - ファイル名は、```<ラン番号>_カラム名.<指定した拡張子>``` となる。
-
-  ```
-  $ vi table_template.tbl
-  ```
 
 * 機械学習データ構築
 ```
