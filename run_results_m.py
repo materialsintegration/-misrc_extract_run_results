@@ -93,7 +93,7 @@ class job_get_iourl(threading.Thread):
         self.results[threading.current_thread().name] = results
 
 
-def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash):
+def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list):
     '''
     まずはGPDBからファイルの実体を取得するIOURLを取得し、CSVを作成する。
     '''
@@ -104,7 +104,11 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
 
     if load_cash is False:
         print("%s - ワークフローID(%s)の全ランのリストを取得します。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), workflow_id))
-        ret = get_runlist(token, url, siteid, workflow_id)
+        retval, ret = get_runlist(token, url, siteid, workflow_id, True)
+        if retval is False:
+            print("%s - ラン一覧の取得に失敗しました。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+            sys.exit(1)
+
         outfile = open("run_result_cash.dat", "wb")
         pickle.dump(ret, outfile)
         outfile.close()
@@ -114,8 +118,26 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
         infile = open("run_result_cash.dat", "rb")
         ret = pickle.load(infile)
         infile.close()
-    print("%s - ランは %d ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
+    #print("%s - ランは %d ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
+    if run_list is not None:
+        infile = open(run_list)
+        lines = infile.read().split("\n")
+        infile.close()
+        run_list = []
+        for runinfo in lines:
+            if runinfo == "":
+                continue
+            run_list.append(runinfo.split()[3])
 
+        newlist = []
+        for item in ret:
+            for run in run_list:
+                if item["run_id"] == run:
+                    newlist.append(item)
+                    break
+        ret = newlist
+
+    print("%s - 対象となるランは %d ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
     periodn = int(len(ret) / 80)
     results = []
     i = 1
@@ -252,11 +274,19 @@ def generate_dat(conffile, csv_file, dat_file):
     for header in headers:
         if header == 'run_id          ':        # run_idは飛ばす
             continue
-        if (header in config) is True and config[header] == "delete":          # ポート名に"delete"の指示があれば、使用しない。
-            pass
+        if (header in config) is True:
+            print(header)
+            if config[header]["filetype"] == "delete" or config[header]["filetype"] == "file":          # ポート名に"delete"の指示があれば、使用しない。
+                print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
+                continue
+            outfile.write("%s,"%header)
         else:
             outfile.write("%s,"%header)
     outfile.write("\n")
+
+    # for debug
+    #outfile.close()
+    #sys.exit(0)
 
     print("%s - URLから内容を取り出しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
 
@@ -266,7 +296,12 @@ def generate_dat(conffile, csv_file, dat_file):
         counter_bar += "-"
     sys.stderr.write("\r%s"%counter_bar)
     sys.stderr.flush()
-    nperiod = int(len(lines) / 80)
+    if len(lines) > 80:
+        nperiod = int(len(lines) / 80)
+    else:
+        nperiod = int(80 / len(lines))
+        #print("lines = %d / nperiod = %d"%(len(lines), nperiod))
+    #sys.exit(0)
     # デバッグログの出力
     logout = open("run_results.log", "w")
 
@@ -302,7 +337,7 @@ def generate_dat(conffile, csv_file, dat_file):
                     break
                 dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w")
                 #outfile.write("%s_%s,"%(aline[0], headers[i]))
-                csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
+                #csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
                 res = session.get(aline[i])
@@ -326,7 +361,7 @@ def generate_dat(conffile, csv_file, dat_file):
                 #outfile.write("%s,"%res.text)
             elif config[headers[i]]["filetype"] == "delete":
                 #outfile.write(",")
-                csv_line += ","
+                #csv_line += ","
                 continue
             else:
                 pass
@@ -360,6 +395,7 @@ def main():
     csv_file = None
     dat_file = None
     thread_num = 10
+    run_list = None
     global STOP_FLAG
 
     for items in sys.argv:
@@ -397,6 +433,8 @@ def main():
             dat_file = items[1]
         elif items[0] == "conf":                # パラメータ構成ファイル
             conf_file = items[1]
+        elif items[0] == "runlist":             # 対処ラン絞り込みリスト
+            run_list = items[1]
         else:
             print("unknown paramter(%s)"%items[0])
 
@@ -433,8 +471,25 @@ def main():
     # 処理開始
     print_help = False
     if run_mode == "iourl":
-        if token is None or workflow_id is None or url is None or siteid is None or csv_file is None:
+        if workflow_id is None or url is None or siteid is None or csv_file is None:
             print_help = True
+        # ランリストの指定があった場合の確認
+        if run_list is not None:
+            if os.path.exists(run_list) is False:
+                print("ランリストファイル(%s)はありません。"%run_list)
+                print_help = True
+        # token指定が無い場合ログイン情報取得
+        if token is None and url is not None:
+    
+            ret, uid, token = getAuthInfo(url)
+    
+            if ret is False:
+                print(uid.json())
+                print("ログインに失敗しました。")
+                print_help = True
+        else:
+            print_help = True
+
     elif run_mode == "file":
         if tablefile is None or csv_file is None or dat_file is None:
             print_help = True
@@ -450,20 +505,20 @@ def main():
         print("")
         print("必須パラメータ")
         print("               mode   : 動作モード。")
-        print("                        iourl : 計算結果データをGPDBへのURLとして取得し、")
-        print("                        入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。")
+        print("                        iourl : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。")
+        print("                                各カラムは計算結果データをGPDBへのURLが格納される。")
         print("                        file : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、")
-        print("                        機械学習向けのCSVファイルを作成する。 ")
+        print("                                機械学習向けのCSVファイルを作成する。 ")
         print("                csv   : iourlモードで作成されるCSVファイルの名前")
         print("                        fileモードではiourlモードで作成したCSVとして指定する。")
         print("               conf   : いくつかのパラメータを書いておける便利な構成ファイル")
         print("                        README.mdを参照")
         print("")
         print("     mode を iourlと指定したとき")
-        print("          workflow_id : Mで始まる15桁のワークフローID")
-        print("               token  : 64文字のAPIトークン")
+        print("          workflow_id : Wで始まる15桁のワークフローID")
+        print("               token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。")
         print("             misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL")
-        print("              siteid  : siteで＋５桁の数字。site00002など")
+        print("              siteid  : siteと＋５桁の数字。site00002など")
         print("              thread  : API呼び出しの並列数（デフォルト10個）")
         print("             usecash  : 次回以降キャッシュから読み込みたい場合に指定する。")
         print("                        未指定で実行すればキャッシュは作成される。")
@@ -471,6 +526,12 @@ def main():
         print("     mode を fileと指定したとき")
         print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
         print("                dat   : fileモードで作成される結果ファイル。機械学習用")
+        print("非必須のパラメータ")
+        print("            runlist   : modeがiourlの時に指定する。")
+        print("                        workflow_execute.pyが出力するランリスト。")
+        print("                        空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。")
+        print("                        このランリストに該当するランのみを処理対象とする。")
+        print("                        指定が無い場合は該当する全ランが対象となる。")
         sys.exit(1)
 
     # Thread上限は20とする。
@@ -478,7 +539,7 @@ def main():
         thread_num = 20
 
     if run_mode == "iourl":
-        generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash)
+        generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list)
     elif run_mode == "file":
         generate_dat(tablefile, csv_file, dat_file)
 

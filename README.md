@@ -14,6 +14,11 @@
 * siteID
 * 入出力情報の変換対応テーブル
 
+あれば便利または詳細な指定が可能なファイル。
+* 絞り込み用ラン一覧リスト
+  + 空白区切りで４カラムめにRxxxxxyyyyyyyyyyというラン番号が格納されているファイル。
+  + ```runlist:<ファイル名>``` で指定する。
+
 ## システム構成
 
 本スクリプトを実行するために必要なシステム構成を記述する。
@@ -32,14 +37,33 @@
 詳細は、[リポジトリのWIKIページ](https://gitlab.mintsys.jp/midev/extract_run_results/-/wikis/%E5%8B%95%E4%BD%9C%E4%BB%95%E6%A7%98)を参照。
 
 ### 使い方の例
-* IOURL取得
+* ラン情報の取得
 ```
 $ python3.6 ~/extract_run_results/run_results_m.py token:６４文字のトークン misystem:dev-u-tokyo.mintsys.jp workflow_id:W000020000000300 mode:iourl csv:results.csv siteid:site00002
 ```
+
+tokenパラメータの指定が無い場合は、ログインプロンプトで対応する。
+
 * 編集
-```
-$ vi table_template.tbl
-```
+  + 編集内容
+  ```
+  {"<カラム名（ポート名）>":"csv", "default": None, "ext": ""}
+  ```
+  + カラム名
+    - スカラーデータはcsvのまま。
+    - ファイルに残す場合は、fileを指定する。
+    - この項目がいらない場合は、deleteを指定する。
+  + default
+    - csvの時かつ非必須でパラメータ指定しなかったとき、デフォルト値として値を指定すると、こちらが使われる。
+    - パラメータ指定していた場合でも、ここがNone以外の時はそちらが使われる。
+  + ext
+    - カラム名の指定が、fileの時の拡張子
+    - ファイル名は、```<ラン番号>_カラム名.<指定した拡張子>``` となる。
+
+  ```
+  $ vi table_template.tbl
+  ```
+
 * 機械学習データ構築
 ```
 $ python3.6 ~/extract_run_results/run_results_m.py mode:file csv:results.csv table:table_template.tbl dat:W000020000000300.csv
@@ -54,20 +78,20 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
 
 必須パラメータ
                mode   : 動作モード。
-                        iourl : 計算結果データをGPDBへのURLとして取得し、
-                        入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。
+                        iourl : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。
+                                各カラムは計算結果データをGPDBへのURLが格納される。
                         file : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、
-                        機械学習向けのCSVファイルを作成する。 
+                                機械学習向けのCSVファイルを作成する。 
                 csv   : iourlモードで作成されるCSVファイルの名前
                         fileモードではiourlモードで作成したCSVとして指定する。
                conf   : いくつかのパラメータを書いておける便利な構成ファイル
                         README.mdを参照
 
      mode を iourlと指定したとき
-          workflow_id : Mで始まる15桁のワークフローID
-               token  : 64文字のAPIトークン
+          workflow_id : Wで始まる15桁のワークフローID
+               token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。
              misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL
-              siteid  : siteで＋５桁の数字。site00002など
+              siteid  : siteと＋５桁の数字。site00002など
               thread  : API呼び出しの並列数（デフォルト10個）
              usecash  : 次回以降キャッシュから読み込みたい場合に指定する。
                         未指定で実行すればキャッシュは作成される。
@@ -75,6 +99,12 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
      mode を fileと指定したとき
                table  : iourlで取得したGPDB情報を変換するテーブルの指定
                 dat   : fileモードで作成される結果ファイル。機械学習用
+非必須のパラメータ
+            runlist   : modeがiourlの時に指定する。
+                        workflow_execute.pyが出力するランリスト。
+                        空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。
+                        このランリストに該当するランのみを処理対象とする。
+                        指定が無い場合は該当する全ランが対象となる。
 
 ```
 
