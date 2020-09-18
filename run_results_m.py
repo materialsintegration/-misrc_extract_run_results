@@ -286,7 +286,7 @@ def generate_dat(conffile, csv_file, dat_file):
             continue
         if (header in config) is True:
             print(header)
-            if config[header]["filetype"] == "delete" or config[header]["filetype"] == "file":          # ポート名に"delete"の指示があれば、使用しない。
+            if config[header]["filetype"] == "delete" or config[header]["filetype"].startswith("file"):          # ポート名に"delete"の指示があれば、使用しない。
                 print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
                 continue
             outfile.write("%s,"%header)
@@ -340,12 +340,15 @@ def generate_dat(conffile, csv_file, dat_file):
                 #outfile.write("%s,"%config[headers[i]]["default"])
                 csv_line += "%s,"%config[headers[i]]["default"]
                 continue
-            if config[headers[i]]["filetype"] == "file":    # スカラー値ではないので、ファイルにする
+            if  config[headers[i]]["filetype"].startswith("file"):    # スカラー値ではないので、ファイルにする
                 if ("values" in aline[i]) is False:         # URLが不完全？
                     logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                     logout.flush()
                     break
-                dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
+                if config[headers[i]]["filetype"] == "file":
+                    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
+                else:
+                    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "wb")
                 #outfile.write("%s_%s,"%(aline[0], headers[i]))
                 #csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
@@ -353,7 +356,10 @@ def generate_dat(conffile, csv_file, dat_file):
                 res = session.get(aline[i])
                 #res = debug_random(-3.0, 3.0)
                 time.sleep(0.05)
-                dataout.write(res.text)
+                if config[headers[i]]["filetype"] == "file":
+                    dataout.write(res.text)
+                else:
+                    dataout.write(res.content)
                 dataout.close()
             elif config[headers[i]]["filetype"] == "csv":   # スカラー値なのでCSVを取得した値で、構成する。
                 if ("values" in aline[i]) is False:         # URLが不完全？
