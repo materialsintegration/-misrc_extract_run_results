@@ -59,6 +59,7 @@ class job_get_iourl(threading.Thread):
         self.results = args[6]
         self.csv_log = args[7]
         self.list_num = len(self.runlist)
+        self.status = {"canceled":"キャンセル", "failure":"起動失敗"}
 
     def run(self):
         '''
@@ -75,7 +76,8 @@ class job_get_iourl(threading.Thread):
                 sys.stderr.flush()
             i += 1
 
-            if run["status"] == "completed":
+            #if run["status"] == "completed":
+            if run["status"] != "canceled" and run["status"] != "failure":
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
                 ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num)
@@ -85,7 +87,7 @@ class job_get_iourl(threading.Thread):
                     continue
                 results.append(ret_dict)
             else:
-                #print("ラン番号(%s)は完了していない？(%s)ので、処理しません。"%(run["run_id"], run["status"]))
+                print("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
                 continue
 
         sys.stderr.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
@@ -181,11 +183,16 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     outfile = open("table_template.tbl", "w")
     outfile.write("{\n")
-    for item in headers:
-        if item == "loop":
+    for i in range(len(headers)):
+    #for item in headers:
+        if headers[i] == "loop":
+        #if item == "loop":
             continue
-        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
-    outfile.write("}\n")
+        #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
+        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
+        if i < len(headers) - 1:
+            outfile.write(",\n")
+    outfile.write("\n}\n")
     outfile.close()
 
     print("%s - ヘッダーは以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -372,6 +379,8 @@ def generate_dat(conffile, csv_file, dat_file):
             sys.stderr.flush()
         count += 1
 
+    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
+    sys.stderr.flush()
     logout.close()
     session.close()
     print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
