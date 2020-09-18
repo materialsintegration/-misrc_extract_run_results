@@ -496,7 +496,7 @@ def main():
                 print(uid.json())
                 print("ログインに失敗しました。")
                 print_help = True
-        else:
+        elif token is None and url is None:
             print_help = True
 
     elif run_mode == "file":
