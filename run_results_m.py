@@ -17,6 +17,9 @@ sys.path.append("/home/misystem/assets/modules/workflow_python_lib")
 from workflow_runlist import *
 from workflow_iourl import *
 
+# 文字コード
+CHARSET_DEF = 'utf-8'
+
 
 class debug_struct(object):
     '''
@@ -122,7 +125,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
         infile.close()
     #print("%s - ランは %d ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
     if run_list is not None:
-        infile = open(run_list)
+        infile = open(run_list, encoding=CHARSET_DEF)
         lines = infile.read().split("\n")
         infile.close()
         run_list = []
@@ -143,7 +146,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     periodn = int(len(ret) / 80)
     results = []
     i = 1
-    csv_log = open("create_csv.log", "w")
+    csv_log = open("create_csv.log", "w", encoding=CHARSET_DEF)
 
     # 指定した数で入出力ファイルURL一覧取得をスレッド処理する。
     ths = []
@@ -181,7 +184,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                         headers.append(item)
 
     print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    outfile = open("table_template.tbl", "w")
+    outfile = open("table_template.tbl", "w", encoding=CHARSET_DEF)
     outfile.write("{\n")
     for i in range(len(headers)):
     #for item in headers:
@@ -196,7 +199,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     outfile.close()
 
     print("%s - ヘッダーは以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    outfile = open(csv_file, "w")
+    outfile = open(csv_file, "w", encoding=CHARSET_DEF)
     total_file_amount = {}
     outfile.write("run_id          ,")
     for item in headers:
@@ -207,7 +210,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
             total_file_amount[item] = 0
 
     # 結果（JSON）の一時保存
-    routfile = open("results_cach.dat", "w")
+    routfile = open("results_cach.dat", "w", encoding=CHARSET_DEF)
     json.dump(results, routfile, ensure_ascii=False, indent=4)
     routfile.close()
 
@@ -262,7 +265,7 @@ def generate_dat(conffile, csv_file, dat_file):
     session = requests.Session()
 
     # 構成ファイルの読み込み
-    infile = open(conffile, "r")
+    infile = open(conffile, "r", encoding=CHARSET_DEF)
     try:
         config = json.load(infile)
     except json.decoder.JSONDecodeError as e:
@@ -272,12 +275,12 @@ def generate_dat(conffile, csv_file, dat_file):
     infile.close()
 
     # CSVファイルの解析
-    infile = open(csv_file, "r")
+    infile = open(csv_file, "r", encoding=CHARSET_DEF)
     lines = infile.read().split("\n")
     headers = lines.pop(0).split(",")
 
     # datファイルの作成
-    outfile = open(dat_file, "w")
+    outfile = open(dat_file, "w", encoding=CHARSET_DEF)
     for header in headers:
         if header == 'run_id          ':        # run_idは飛ばす
             continue
@@ -310,7 +313,7 @@ def generate_dat(conffile, csv_file, dat_file):
         #print("lines = %d / nperiod = %d"%(len(lines), nperiod))
     #sys.exit(0)
     # デバッグログの出力
-    logout = open("run_results.log", "w")
+    logout = open("run_results.log", "w", encoding=CHARSET_DEF)
 
     count = 1
     current_runid = None
@@ -342,7 +345,7 @@ def generate_dat(conffile, csv_file, dat_file):
                     logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                     logout.flush()
                     break
-                dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w")
+                dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
                 #outfile.write("%s_%s,"%(aline[0], headers[i]))
                 #csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
@@ -451,7 +454,7 @@ def main():
     config = None
     if conf_file is not None:
         sys.stderr.write("パラメータを構成ファイル(%s)から読み込みます。\n"%conf_file)
-        infile = open(conf_file, "r")
+        infile = open(conf_file, "r", encoding=CHARSET_DEF)
         try:
             config = json.load(infile)
         except json.decoder.JSONDecodeError as e:
