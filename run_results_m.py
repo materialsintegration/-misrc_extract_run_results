@@ -256,15 +256,20 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
 
     csv_log.close()
 
-def generate_dat(conffile, csv_file, dat_file):
+def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     '''
     generete_csvで作成されたcsv_fileをconffileの設定に従い、dat_fileに再構成する。
+    @param conffile (string) テンプレートファイル名
+    @param csv_file (string) mode:iourlで作成されたCSVファイル名
+    @param dat_file (string) 上記２ファイルから作成されるCSVファイル名
+    @param workflow_id (string) テンプレートファイル内のdefaultがNoneで無い場合に使用するワークフローID
+    @param siteid (string) 同、サイトID
     '''
 
     # セッション
     session = requests.Session()
 
-    # 構成ファイルの読み込み
+    # テンプレートファイルの読み込み
     infile = open(conffile, "r", encoding=CHARSET_DEF)
     try:
         config = json.load(infile)
@@ -273,6 +278,14 @@ def generate_dat(conffile, csv_file, dat_file):
         sys.stderr.write("%s\n"%e)
         sys.exit(1)
     infile.close()
+
+    # テンプレートファイルの確認
+    for item in config:
+        if config[item]["default"] != None:
+            if workflow_id == "" or siteid == "":
+                sys.stderr.write("直接ファイル取得の指定がされているが、ワークフローID(%s)またはサイトID(%s)の指定が無い"%(workflow_id, siteid))
+                sys.stderr.flush()
+                sys.exit(1)
 
     # CSVファイルの解析
     infile = open(csv_file, "r", encoding=CHARSET_DEF)
@@ -369,12 +382,13 @@ def generate_dat(conffile, csv_file, dat_file):
                     break
                 logout.write("%s - - getting file contents for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
-                res = session.get(aline[i])
-                #outfile.write("%s,"%res.text.split("\n")[0])
-                csv_line += "%s,"%res.text.split("\n")[0]
-                #res = debug_random(-3.0, 3.0)
-                #time.sleep(0.1)
-                #outfile.write("%s,"%res.text)
+                if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
+                    res = session.get(aline[i])
+                    csv_line += "%s,"%res.text.split("\n")[0]
+                else:
+                    # None以外にファイル名が記入されているはずなので、
+                    # GPDB URLのUUIDからパスを再構成してそのファイルを入手する。（指定されたファイルが無い場合はこのカラムは可らとなる。
+                    pass
             elif config[headers[i]]["filetype"] == "delete":
                 #outfile.write(",")
                 #csv_line += ","
@@ -478,11 +492,21 @@ def main():
                 siteid = config["siteid"]
             if ("workflow_id" in config) is True:
                 workflow_id = config["workflow_id"]
+            if ("csv" in config) is True:
+                csv_file = config["csv"]
+            if ("run_list" in config) is True:
+                run_list = config["run_list"]
         elif run_mode == "file":
+            if ("csv" in config) is True:
+                csv_file = config["csv"]
             if ("table" in config) is True:
                 tablefile = config["table"]
             if ("dat" in config) is True:
                 dat_file = config["dat"]
+            if ("workflow_id" in config) is True:
+                workflow_id = config["workflow_id"]
+            if ("siteid" in config) is True:
+                siteid = config["siteid"]
         if ("csv_file" in config) is True:
             csv_file = config["csv_file"]
 
@@ -559,7 +583,7 @@ def main():
     if run_mode == "iourl":
         generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list)
     elif run_mode == "file":
-        generate_dat(tablefile, csv_file, dat_file)
+        generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid)
 
 if __name__ == '__main__':
     main()
