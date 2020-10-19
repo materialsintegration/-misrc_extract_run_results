@@ -69,13 +69,13 @@ class job_get_iourl(threading.Thread):
         スレッド実行
         '''
 
-        sys.stderr.write("%s -- %03d : %10d 個のランを処理します。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
+        sys.stdout.write("%s -- %03d : %10d 個のランを処理します。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
         sys.stderr.flush()
         i = 1
         results = []
         for run in self.runlist:
             if (i % 500) == 0:
-                sys.stderr.write("%s -- %03d : %d 個処理しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, i))
+                sys.stdout.write("%s -- %03d : %d 個処理しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, i))
                 sys.stderr.flush()
             i += 1
 
@@ -91,10 +91,12 @@ class job_get_iourl(threading.Thread):
                 results.append(ret_dict)
             else:
                 print("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
+                self.csv_log.write("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
+                self.csv_log.flush()
                 continue
 
-        sys.stderr.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
-        sys.stderr.flush()
+        sys.stdout.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
+        sys.stdout.flush()
         self.results[threading.current_thread().name] = results
 
 
@@ -294,17 +296,37 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
 
     # datファイルの作成
     outfile = open(dat_file, "w", encoding=CHARSET_DEF)
-    for header in headers:
-        if header == 'run_id          ':        # run_idは飛ばす
-            continue
-        if (header in config) is True:
+    count = 1
+    #for header in headers:
+    #    if header == 'run_id          ':        # run_idは飛ばす
+    #        continue
+    #    if (header in config) is True:
+    #        print(header)
+    #        if config[header]["filetype"] == "delete" or config[header]["filetype"].startswith("file"):          # ポート名に"delete"の指示があれば、使用しない。
+    #            print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
+    #            continue
+    #        if count == 1:
+    #            outfile.write("%s"%header)
+    #        else:
+    #            outfile.write(",%s"%header)
+    #        count += 1
+    #    #else:
+    #    #    outfile.write("%s,"%header)
+    results_order = []
+    results_order.append("loop")
+    outfile.write("loop,")
+    for header in config:
+        if (header in headers) is True:
             print(header)
             if config[header]["filetype"] == "delete" or config[header]["filetype"].startswith("file"):          # ポート名に"delete"の指示があれば、使用しない。
                 print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
                 continue
-            outfile.write("%s,"%header)
-        else:
-            outfile.write("%s,"%header)
+            if count == 1:
+                outfile.write("%s"%header)
+            else:
+                outfile.write(",%s"%header)
+            count += 1
+            results_order.append(header)
     outfile.write("\n")
 
     # for debug
@@ -332,14 +354,16 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     current_runid = None
     for aline in lines:
         aline = aline.split(",")
-        csv_line = ""
+        csv_line = {}
+        for i in range(len(results_order)):
+            csv_line[results_order[i]] = None
         for i in range(len(aline)):
             items = aline[i].split(";")
             if headers[i] == "":
                 continue
             elif headers[i] == "run_id          ":
-                #outfile.write("%s,"%aline[i])
-                csv_line += "%s,"%aline[i]
+                #csv_line += "%s,"%aline[i]
+                csv_line["loop"] = "%s"%aline[i]
                 current_runid = aline[i]
                 continue
             elif headers[i] == "loop":
@@ -350,8 +374,8 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
             item1 = items[0]
             item2 = items[1]
             if item1 == "None":              # 初期値を使う
-                #outfile.write("%s,"%config[headers[i]]["default"])
-                csv_line += "%s,"%config[headers[i]]["default"]
+                #csv_line += "%s,"%config[headers[i]]["default"]
+                csv_line[headers[i]] = "%s"%config[headers[i]]["default"]
                 continue
             if  config[headers[i]]["filetype"].startswith("file"):    # スカラー値ではないので、ファイルにする
                 if ("values" in aline[i]) is False:         # URLが不完全？
@@ -384,7 +408,8 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
                 logout.flush()
                 if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
                     res = session.get(aline[i])
-                    csv_line += "%s,"%res.text.split("\n")[0]
+                    #csv_line += "%s,"%res.text.split("\n")[0]
+                    csv_line[headers[i]] = "%s"%res.text.split("\n")[0]
                 else:
                     # None以外にファイル名が記入されているはずなので、
                     # GPDB URLのUUIDからパスを再構成してそのファイルを入手する。（指定されたファイルが無い場合はこのカラムは可らとなる。
@@ -395,7 +420,14 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
                 continue
             else:
                 pass
-        outfile.write("%s\n"%csv_line)
+        #csv_line = csv_line[:-1]
+        #outfile.write("%s\n"%csv_line)
+        for i in range(len(results_order)):
+            if i == 0:
+                outfile.write("%s"%csv_line[results_order[i]])
+            else:
+                outfile.write(",%s"%csv_line[results_order[i]])
+        outfile.write("\n")
         if (count % nperiod) == 0:
             counter_bar = counter_bar.replace("-", "*", 1)
             sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
@@ -478,7 +510,7 @@ def main():
         try:
             config = json.load(infile)
         except json.decoder.JSONDecodeError as e:
-            sys.stderr.write("%sを読み込み中の例外キャッチ\n"%conffile)
+            sys.stderr.write("%sを読み込み中の例外キャッチ\n"%conf_file)
             sys.stderr.write("%s\n"%e)
             sys.exit(1)
         infile.close()
