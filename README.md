@@ -100,6 +100,8 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
               thread  : API呼び出しの並列数（デフォルト10個）
              usecash  : 次回以降キャッシュから読み込みたい場合に指定する。
                         未指定で実行すればキャッシュは作成される。
+          run_status  : CSV出力対象のランステータス。カンマ区切りで複数指定可能。
+                        未指定で実行すればcompletedのみ対象とする。
 
      mode を fileと指定したとき
                table  : iourlで取得したGPDB情報を変換するテーブルの指定
