@@ -61,8 +61,10 @@ class job_get_iourl(threading.Thread):
         self.result = args[5]
         self.results = args[6]
         self.csv_log = args[7]
+        self.run_status = args[8]
         self.list_num = len(self.runlist)
-        self.status = {"canceled":"キャンセル", "failure":"起動失敗"}
+        self.status = {"canceled":"キャンセル", "failure":"起動失敗", "running":"実行中",
+                       "waiting":"待機中", "paused":"一時停止", "abend":"異常終了"}
 
     def run(self):
         '''
@@ -80,7 +82,8 @@ class job_get_iourl(threading.Thread):
             i += 1
 
             #if run["status"] == "completed":
-            if run["status"] != "canceled" and run["status"] != "failure":
+            # if run["status"] != "canceled" and run["status"] != "failure":
+            if run["status"] in self.run_status:
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
                 ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num)
@@ -88,6 +91,8 @@ class job_get_iourl(threading.Thread):
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
                     continue
+                ret_dict[run["run_id"]]["description"] = run["description"]
+                ret_dict[run["run_id"]]["status"] = run["status"]
                 results.append(ret_dict)
             else:
                 print("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
@@ -100,7 +105,7 @@ class job_get_iourl(threading.Thread):
         self.results[threading.current_thread().name] = results
 
 
-def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list):
+def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list, run_status):
     '''
     まずはGPDBからファイルの実体を取得するIOURLを取得し、CSVを作成する。
     '''
@@ -162,7 +167,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
             runlist = ret[init:num1]
         init += num
         num1 += num
-        t = job_get_iourl(args=(token, url, siteid, runlist, i + 1, result, results, csv_log))
+        t = job_get_iourl(args=(token, url, siteid, runlist, i + 1, result, results, csv_log, run_status))
         ths.append(t)
         t.start()
         time.sleep(1)
@@ -190,7 +195,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     outfile.write("{\n")
     for i in range(len(headers)):
     #for item in headers:
-        if headers[i] == "loop":
+        if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status":
         #if item == "loop":
             continue
         #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
@@ -203,13 +208,17 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     print("%s - ヘッダーは以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     outfile = open(csv_file, "w", encoding=CHARSET_DEF)
     total_file_amount = {}
-    outfile.write("run_id          ,")
+    out_dat = []
+#    outfile.write("run_id          ,")
+    out_dat.append("run_id          ")
     for item in headers:
-        outfile.write("%s,"%item)
+#        outfile.write("%s,"%item)
+        out_dat.append(item)
         sys.stderr.write("%s\n"%item)
         sys.stderr.flush()
-        if item != "loop":
+        if item != "loop" and item != "description" and item != "status":
             total_file_amount[item] = 0
+    outfile.write(','.join(out_dat))
 
     # 結果（JSON）の一時保存
     routfile = open("results_cach.dat", "w", encoding=CHARSET_DEF)
@@ -219,6 +228,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     print("%s - データファイル(CSV)を構築しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     #print("%s"%str(results))
     outfile.write("\n")
+    out_dat = []
     for thread in results:
         for items in results[thread]:
             for item in items:
@@ -228,20 +238,33 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                     if (key in items[item]) is True:
                         #print(key)
                         if key == "loop":
-                            outfile.write("%d,"%int(item[1:]))                   # run_idを先頭に記入
-                            outfile.write("%d"%items[item][key])
+                            # outfile.write("%d,"%int(item[1:]))                   # run_idを先頭に記入
+                            # outfile.write("%d"%items[item][key])
+                            out_dat.append(str(item[1:]))
+                            out_dat.append(str(items[item][key]))
+                        elif key == "description":
+                            # 改行コード、","を半角スペースに置換
+                            out_dat.append(' '.join(items[item][key].replace(',', ' ').splitlines()))
+                        elif key == "status":
+                            out_dat.append(items[item][key])
                         else:
                             if items[item][key][0] == "null":
-                                outfile.write("null:0")
+                                # outfile.write("null:0")
+                                out_dat.append("null:0")
                             else:
-                                outfile.write("%s;%s"%(items[item][key][0], items[item][key][1]))
+                                # outfile.write("%s;%s"%(items[item][key][0], items[item][key][1]))
+                                out_dat.append("%s;%s"%(items[item][key][0], items[item][key][1]))
                                 if items[item][key][1] is None or items[item][key][1] == "None":
                                     pass
                                 else:
                                     total_file_amount[key] += items[item][key][1] 
-                    outfile.write(",")
-    
+                    else:
+                        out_dat.append("")
+                    # outfile.write(",")
+
+            outfile.write(','.join(out_dat))
             outfile.write("\n")
+            out_dat = []
 
     outfile.close()
     print("%s - データファイル(CSV)を構築終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -291,7 +314,10 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
 
     # CSVファイルの解析
     infile = open(csv_file, "r", encoding=CHARSET_DEF)
-    lines = infile.read().split("\n")
+    # 改行コードで分割して読み込むと最終行が空行となるため、読み込み方法を変更
+    # lines = infile.read().split("\n")
+    lines = [s.strip() for s in infile.readlines()]
+    infile.close()
     headers = lines.pop(0).split(",")
 
     # datファイルの作成
@@ -434,6 +460,7 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
             sys.stderr.flush()
         count += 1
 
+    outfile.close()
     sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
     sys.stderr.flush()
     logout.close()
@@ -452,6 +479,7 @@ def main():
     siteid = None
     result = False
     load_cash = False
+    run_status = ["completed"]
     command_help = False
     run_mode = None
     conf_file = None
@@ -484,6 +512,8 @@ def main():
                 therad_num = 10
         elif items[0] == "usecash":             # ランリストのキャッシュを使う
             load_cash = True
+        elif items[0] == "run_status":          # ランステータス
+            run_status = [s.strip() for s in items[1].split(',')]
         elif items[0] == "help":                # ヘルプ
             command_help = True
         elif items[0] == "mode":                # モード指定(iourl:URL取得/file:テーブル作成)
@@ -528,6 +558,8 @@ def main():
                 csv_file = config["csv"]
             if ("run_list" in config) is True:
                 run_list = config["run_list"]
+            if ("run_status" in config) is True:
+                run_status = [s.strip() for s in config["run_status"].split(',')]
         elif run_mode == "file":
             if ("csv" in config) is True:
                 csv_file = config["csv"]
@@ -596,6 +628,8 @@ def main():
         print("              thread  : API呼び出しの並列数（デフォルト10個）")
         print("             usecash  : 次回以降キャッシュから読み込みたい場合に指定する。")
         print("                        未指定で実行すればキャッシュは作成される。")
+        print("          run_status  : CSV出力対象のランステータス。カンマ区切りで複数指定可能。")
+        print("                        未指定で実行すればcompletedのみ対象とする。")
         print("")
         print("     mode を fileと指定したとき")
         print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
@@ -613,7 +647,7 @@ def main():
         thread_num = 20
 
     if run_mode == "iourl":
-        generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list)
+        generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list, run_status)
     elif run_mode == "file":
         generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid)
 
