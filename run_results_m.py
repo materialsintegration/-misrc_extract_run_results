@@ -1,5 +1,10 @@
 #!/usr/local/python2.7/bin/python
 # -*- coding: utf-8 -*-
+# Copyright (c) The University of Tokyo and
+# National Institute for Materials Science (NIMS). All rights reserved.
+# This document may not be reproduced or transmitted in any form,
+# in whole or in part, without the express written permission of
+# the copyright owners.
 
 '''
 ワークフローIDからランのリストを取得して、特定の作業をする(マルチセッション版)
@@ -96,12 +101,14 @@ class job_get_iourl(threading.Thread):
                 results.append(ret_dict)
             else:
                 print("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
-                self.csv_log.write("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
+                self.csv_log.write("%s -- %03d : ラン番号(%s)は実行完了していない(%s)ので、処理しません。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"], self.status[run["status"]]))
                 self.csv_log.flush()
                 continue
 
         sys.stdout.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
         sys.stdout.flush()
+        self.csv_log.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
+        self.csv_log.flush()
         self.results[threading.current_thread().name] = results
 
 
@@ -232,9 +239,19 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     for thread in results:
         for items in results[thread]:
             for item in items:
+                isNoPorts = False                                   # ポートが不完全なランがあるとTrueとする
+                for key in headers:
+                    if (key in items[item]) is False:
+                        isNoPorts = True
+
+                if isNoPorts is True:                               # 不完全なポートがあった
+                    sys.stderr.write("ランID(%s)はポート情報が不完全なのでリストから除外します。\n"%item[1:])
+                    sys.stderr.flush()
+                    continue                                        # 次のランの処理へ
                 for key in headers:
                     #print(item)
                     #print(str(items[item]))
+                    # preチェック
                     if (key in items[item]) is True:
                         #print(key)
                         if key == "loop":
@@ -262,9 +279,10 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                         out_dat.append("")
                     # outfile.write(",")
 
-            outfile.write(','.join(out_dat))
-            outfile.write("\n")
-            out_dat = []
+            if len(out_dat) != 0:
+                outfile.write(','.join(out_dat))
+                outfile.write("\n")
+                out_dat = []
 
     outfile.close()
     print("%s - データファイル(CSV)を構築終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -577,7 +595,17 @@ def main():
     # 処理開始
     print_help = False
     if run_mode == "iourl":
-        if workflow_id is None or url is None or siteid is None or csv_file is None:
+        if workflow_id is None:
+            print("対象のワークフローIDの指定がありません")
+            print_help = True
+        if url is None:
+            print("対象のMIntシステムの指定がありません")
+            print_help = True
+        if siteid is None:
+            print("siteIDの指定がありません")
+            print_help = True
+        if csv_file is None:
+            print("CSVファイル名の指定がありません")
             print_help = True
         # ランリストの指定があった場合の確認
         if run_list is not None:
@@ -594,6 +622,7 @@ def main():
                 print("ログインに失敗しました。")
                 print_help = True
         elif token is None and url is None:
+            print("APIトークンとMIntシステムの指定がありません。")
             print_help = True
 
     elif run_mode == "file":
@@ -602,6 +631,7 @@ def main():
     elif command_help is True:
         print_help = True
     else:
+        print("modeの指定がありません。")
         print_help = True
 
     if print_help is True or run_mode is None:
