@@ -200,15 +200,19 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     outfile = open("table_template.tbl", "w", encoding=CHARSET_DEF)
     outfile.write("{\n")
+    outflg = False
     for i in range(len(headers)):
     #for item in headers:
         if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status":
         #if item == "loop":
             continue
         #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
-        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
-        if i < len(headers) - 1:
+        if outflg:
             outfile.write(",\n")
+        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
+        outflg = True
+        # if i < len(headers) - 1:
+        #     outfile.write(",\n")
     outfile.write("\n}\n")
     outfile.close()
 
