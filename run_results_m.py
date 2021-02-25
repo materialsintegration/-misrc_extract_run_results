@@ -457,7 +457,9 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
                 if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
                     res = session.get(aline[i])
                     #csv_line += "%s,"%res.text.split("\n")[0]
-                    csv_line[headers[i]] = "%s"%res.text.split("\n")[0]
+                    #csv_line[headers[i]] = "%s"%res.text.split("\n")[0]
+                    tmpval = res.text.replace("\r\n", "\n")
+                    csv_line[headers[i]] = "%s"%tmpval.split("\n")[0]
                 else:
                     # None以外にファイル名が記入されているはずなので、
                     # GPDB URLのUUIDからパスを再構成してそのファイルを入手する。（指定されたファイルが無い場合はこのカラムは可らとなる。
