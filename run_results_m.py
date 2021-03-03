@@ -17,6 +17,8 @@ import datetime
 import pickle
 import requests
 import random
+import time
+import json
 
 sys.path.append("/home/misystem/assets/modules/workflow_python_lib")
 from workflow_runlist import *
@@ -209,7 +211,11 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
         #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
         if outflg:
             outfile.write(",\n")
-        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
+        # ===> 2021/03/02 JSON変換用にキーを増やす
+        #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
+        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":"", "bayes_type":"params", "param_name":""}'%headers[i])
+        # <=== 2021/03/02
+
         outflg = True
         # if i < len(headers) - 1:
         #     outfile.write(",\n")
@@ -345,21 +351,6 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     # datファイルの作成
     outfile = open(dat_file, "w", encoding=CHARSET_DEF)
     count = 1
-    #for header in headers:
-    #    if header == 'run_id          ':        # run_idは飛ばす
-    #        continue
-    #    if (header in config) is True:
-    #        print(header)
-    #        if config[header]["filetype"] == "delete" or config[header]["filetype"].startswith("file"):          # ポート名に"delete"の指示があれば、使用しない。
-    #            print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
-    #            continue
-    #        if count == 1:
-    #            outfile.write("%s"%header)
-    #        else:
-    #            outfile.write(",%s"%header)
-    #        count += 1
-    #    #else:
-    #    #    outfile.write("%s,"%header)
     results_order = []
     results_order.append("loop")
     outfile.write("loop,")
@@ -491,6 +482,218 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     session.close()
     print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
 
+def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", siteid=""):
+    '''
+    generete_csvで作成されたcsv_fileをconffileの設定に従い、json_fileに再構成する。
+    @param conffile (string) テンプレートファイル名
+    @param csv_file (string) mode:iourlで作成されたCSVファイル名
+    @param json_file (string) 上記２ファイルから作成されるCSVファイル名
+    @param rename_table (dict) ポート名＝パラメータ置き換えテーブル辞書
+    @param workflow_id (string) テンプレートファイル内のdefaultがNoneで無い場合に使用するワークフローID
+    @param siteid (string) 同、サイトID
+    '''
+
+    # セッション
+    session = requests.Session()
+
+    # テンプレートファイルの読み込み
+    infile = open(conffile, "r", encoding=CHARSET_DEF)
+    try:
+        config = json.load(infile)
+    except json.decoder.JSONDecodeError as e:
+        sys.stderr.write("%sを読み込み中の例外キャッチ\n"%conffile)
+        sys.stderr.write("%s\n"%e)
+        sys.exit(1)
+    infile.close()
+
+    # テンプレートファイルの確認
+    for item in config:
+        target_dup = False
+        prev_target = ""
+        if ("bayes_type" in config[item]) is False:
+            sys.stderr.write("ポート名(%s)に、'bayes_type'キーがありません。"%item)
+            sys.stderr.flush()
+            sys.exit(1)
+        if ("params_name" in config[item]) is False:
+            sys.stderr.write("ポート名(%s)に、'params_name'キーがありません。"%item)
+            sys.stderr.flush()
+            sys.exit(1)
+        if config[item]["bayes_type"] == "target":        # target指定の確認
+            if target_dup is True:
+                sys.stderr.write("target 指定が複数ありました。このバージョンは１つのみ許容できます。")
+                sys.stderr.write("ポート名：%s(以前のtarget指定のポート名：%s)"%(item, prev_target))
+                sys.stderr.flush()
+                sys.exit(1)
+            else:
+                target_dup = True
+                prev_target = item
+        elif config[item]["bayes_type"] == "params":
+            pass
+        else:
+            sys.stderr.write("ポート名(%s)の'bayes_type'に不明なタイプ(%s)が指定されていました。"%(item, config[item]["bayes_type"]))
+            sys.stderr.flush()
+            sys.exit(1)
+
+    # CSVファイルの解析
+    infile = open(csv_file, "r", encoding=CHARSET_DEF)
+    # 改行コードで分割して読み込むと最終行が空行となるため、読み込み方法を変更
+    # lines = infile.read().split("\n")
+    lines = [s.strip() for s in infile.readlines()]
+    infile.close()
+    headers = lines.pop(0).split(",")
+
+    # datファイルの作成
+    outfile = open(json_file, "w", encoding=CHARSET_DEF)
+    count = 1
+    #results_order = []
+    #results_order.append("loop")
+    # ===> 2021/03/02 ヘッダー処理は不要
+    #outfile.write("loop,")
+    #for header in config:
+    #    if (header in headers) is True:
+    #        print(header)
+    #        if config[header]["filetype"] == "delete" or config[header]["filetype"].startswith("file"):          # ポート名に"delete"の指示があれば、使用しない。
+    #            print("カラム(%s)はdelete指定またはfile指定があったので、削除します。"%header)
+    #            continue
+    #        if count == 1:
+    #            outfile.write("%s"%header)
+    #        else:
+    #            outfile.write(",%s"%header)
+    #        count += 1
+    #        #results_order.append(header)
+    #outfile.write("\n")
+    # <=== 2021/03/02
+
+    # for debug
+    #outfile.close()
+    #sys.exit(0)
+
+    print("%s - URLから内容を取り出しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+
+    # 初期進捗バーの作成
+    counter_bar = "-"
+    for i in range(79):
+        counter_bar += "-"
+    sys.stderr.write("\r%s"%counter_bar)
+    sys.stderr.flush()
+    if len(lines) > 80:
+        nperiod = int(len(lines) / 80)
+    else:
+        nperiod = int(80 / len(lines))
+        #print("lines = %d / nperiod = %d"%(len(lines), nperiod))
+    #sys.exit(0)
+    # デバッグログの出力
+    logout = open("run_results.log", "w", encoding=CHARSET_DEF)
+
+    count = 1
+    current_runid = None
+    for aline in lines:
+        aline = aline.split(",")
+        json_line = {"target":"", "params":{}}
+        #for i in range(len(results_order)):
+        #    json_line[results_order[i]] = None
+        for i in range(len(aline)):
+            items = aline[i].split(";")
+            if headers[i] == "":
+                continue
+            elif headers[i] == "run_id          ":
+                #json_line += "%s,"%aline[i]
+                #json_line["loop"] = "%s"%aline[i]
+                current_runid = aline[i]
+                continue
+            elif headers[i] == "loop":
+                continue
+            elif (";" in aline[i]) is False:
+                logout.write("%s - - invalid file contents(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
+                continue
+            item1 = items[0]
+            item2 = items[1]
+            if item1 == "None":              # 初期値を使う
+                #json_line += "%s,"%config[headers[i]]["default"]
+                json_line[headers[i]] = "%s"%config[headers[i]]["default"]
+                continue
+            # ===> 2021/03/02 filetypeキーは使用しないのでコメントアウトする。
+            #if  config[headers[i]]["filetype"].startswith("file"):    # スカラー値ではないので、ファイルにする
+            #    if ("values" in aline[i]) is False:         # URLが不完全？
+            #        logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
+            #        logout.flush()
+            #        break
+            #    if config[headers[i]]["filetype"] == "file":
+            #        dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
+            #    else:
+            #        dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "wb")
+            #    logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
+            #    logout.flush()
+            #    res = session.get(aline[i])
+            #    time.sleep(0.05)
+            #    if config[headers[i]]["filetype"] == "file":
+            #        dataout.write(res.text)
+            #    else:
+            #        dataout.write(res.content)
+            #    dataout.close()
+            #elif config[headers[i]]["filetype"] == "delete":
+            #    #outfile.write(",")
+            #    #json_line += ","
+            #    continue
+            #else:
+            #    pass
+            #elif config[headers[i]]["filetype"] == "param" or config[headers[i]]["filetype"] == "target":
+            if config[headers[i]]["bayes_type"] == "params" or config[headers[i]]["bayes_type"] == "target":
+            # <=== 2021/03/02
+                # スカラー値なのでCSVを取得した値で、構成する。
+                if ("values" in aline[i]) is False:         # URLが不完全？
+                    logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
+                    logout.flush()
+                    break
+                    break
+                logout.write("%s - - getting file contents for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
+                logout.flush()
+                if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
+                    res = session.get(aline[i])
+                    tmpval = res.text.replace("\r\n", "\n")
+                    if config[headers[i]]["bayes_type"] == "target":
+                        json_line["target"] = float(tmpval.split("\n")[0])
+                    elif config[headers[i]]["bayes_type"] == "params":
+                        json_line["params"][headers[i]] = '"%s": %s'%(config[headers[i]]["params_name"], tmpval.split("\n")[0])
+                    else:
+                        logout.write("ランID(%s)、ポート名(%s)のfiletype(%s)は処理できません"%(current_runid, headers[i], config[headers[i]]["bayes_type"]))
+                else:
+                    # None以外にファイル名が記入されているはずなので、
+                    # GPDB URLのUUIDからパスを再構成してそのファイルを入手する。（指定されたファイルが無い場合はこのカラムは空となる。
+                    pass
+        #for i in range(len(results_order)):
+        #    if i == 0:
+        #        outfile.write("%s"%json_line[results_order[i]])
+        #    else:
+        #        outfile.write(",%s"%json_line[results_order[i]])
+        line_result = ""
+        for item in json_line:
+            if item == "target":
+                line_result = '{"%s": %f, "params": {'%(item, json_line[item])
+            else:
+                json_count = 1
+                for key in json_line[item]:
+                    #line_result += '"%s": "%s"'%(config[headers[i]]["params_name"], json_line[item][key])
+                    line_result += "%s"%json_line[item][key]
+                    if json_count < len(json_line[item]):
+                        line_result += ", "
+                    json_count += 1
+        line_result += "}}"
+        #outfile.write("%s\n"%str(json_line))
+        outfile.write("%s\n"%line_result)
+        if (count % nperiod) == 0:
+            counter_bar = counter_bar.replace("-", "*", 1)
+            sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
+            sys.stderr.flush()
+        count += 1
+
+    outfile.close()
+    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
+    sys.stderr.flush()
+    logout.close()
+    session.close()
+    print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+
 def main():
     '''
     開始点
@@ -512,6 +715,8 @@ def main():
     dat_file = None
     thread_num = 10
     run_list = None
+    json_file = None
+    rename_table = {}
     global STOP_FLAG
 
     for items in sys.argv:
@@ -541,7 +746,7 @@ def main():
         elif items[0] == "help":                # ヘルプ
             command_help = True
         elif items[0] == "mode":                # モード指定(iourl:URL取得/file:テーブル作成)
-            if items[1] == "iourl" or items[1] == "file":
+            if items[1] == "iourl" or items[1] == "file" or items[1] == "pybayes_json":
                 run_mode = items[1]
         elif items[0] == "table":               # IOURLからCSV作成用の変換テーブル指定
             tablefile = items[1]
@@ -553,6 +758,8 @@ def main():
             conf_file = items[1]
         elif items[0] == "runlist":             # 対処ラン絞り込みリスト
             run_list = items[1]
+        elif items[0] == "json":                # 第二段階のjsonファイルの名前
+            json_file = items[1]
         else:
             print("unknown paramter(%s)"%items[0])
 
@@ -595,6 +802,19 @@ def main():
                 workflow_id = config["workflow_id"]
             if ("siteid" in config) is True:
                 siteid = config["siteid"]
+        elif run_mode == "pybayes_json":
+            if ("csv" in config) is True:
+                csv_file = config["csv"]
+            if ("table" in config) is True:
+                tablefile = config["table"]
+            if ("json" in config) is True:
+                json_file = config["dat"]
+            if ("workflow_id" in config) is True:
+                workflow_id = config["workflow_id"]
+            if ("siteid" in config) is True:
+                siteid = config["siteid"]
+            if ("pybayes_json_table" in config) is True:
+                rename_table = config["pybayes_json_table"]
         if ("csv_file" in config) is True:
             csv_file = config["csv_file"]
 
@@ -633,6 +853,11 @@ def main():
 
     elif run_mode == "file":
         if tablefile is None or csv_file is None or dat_file is None:
+            print("必要なファイルが足りません。")
+            print_help = True
+    elif run_mode == "pybayes_json":
+        if tablefile is None or csv_file is None or json_file is None:
+            print("必要なファイルが足りません。")
             print_help = True
     elif command_help is True:
         print_help = True
@@ -647,10 +872,11 @@ def main():
         print("")
         print("必須パラメータ")
         print("               mode   : 動作モード。")
-        print("                        iourl : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。")
-        print("                                各カラムは計算結果データをGPDBへのURLが格納される。")
-        print("                        file : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、")
-        print("                                機械学習向けのCSVファイルを作成する。 ")
+        print("                        iourl        : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。")
+        print("                                       各カラムは計算結果データをGPDBへのURLが格納される。")
+        print("                        file         : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、")
+        print("                                       機械学習向けのCSVファイルを作成する。 ")
+        print("                        pybayes_json : pythonのbayesian_optimization用リスタートファイルを作成する。")
         print("                csv   : iourlモードで作成されるCSVファイルの名前")
         print("                        fileモードではiourlモードで作成したCSVとして指定する。")
         print("               conf   : いくつかのパラメータを書いておける便利な構成ファイル")
@@ -670,6 +896,9 @@ def main():
         print("     mode を fileと指定したとき")
         print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
         print("                dat   : fileモードで作成される結果ファイル。機械学習用")
+        print("     mode を pybayes_jsonと指定したとき")
+        print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
+        print("                json  : basian_optimization用のリロードファイル名の指定")
         print("非必須のパラメータ")
         print("            runlist   : modeがiourlの時に指定する。")
         print("                        workflow_execute.pyが出力するランリスト。")
@@ -686,6 +915,8 @@ def main():
         generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list, run_status)
     elif run_mode == "file":
         generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid)
+    elif run_mode == "pybayes_json":
+        generate_json(tablefile, csv_file, json_file, rename_table, workflow_id, siteid)
 
 if __name__ == '__main__':
     main()
