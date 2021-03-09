@@ -252,12 +252,12 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                 isNoPorts = False                                   # ポートが不完全なランがあるとTrueとする
                 for key in headers:
                     if (key in items[item]) is False:
-                        sys.stderr.write("ランID(%s)はヘッダー(%s)と同じポートがありませんでした。"%(item[1:], key))
+                        sys.stderr.write("ランID(R%s)はヘッダー(%s)と同じポートがありませんでした。\n"%(item[1:], key))
                         sys.stderr.flush()
                         isNoPorts = True
 
                 if isNoPorts is True:                               # 不完全なポートがあった
-                    sys.stderr.write("ランID(%s)はポート情報が不完全なのでリストから除外します。\n"%item[1:])
+                    sys.stderr.write("ランID(R%s)はポート情報が不完全なのでリストから除外します。\n"%item[1:])
                     sys.stderr.flush()
                     continue                                        # 次のランの処理へ
                 for key in headers:
