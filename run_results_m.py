@@ -213,7 +213,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
             outfile.write(",\n")
         # ===> 2021/03/02 JSON変換用にキーを増やす
         #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
-        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":"", "bayes_type":"params", "param_name":""}'%headers[i])
+        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":"", "bayes_type":"params", "param_name":"", "ratio":""}'%headers[i])
         # <=== 2021/03/02
 
         outflg = True
@@ -516,25 +516,41 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
             sys.stderr.write("ポート名(%s)に、'bayes_type'キーがありません。"%item)
             sys.stderr.flush()
             sys.exit(1)
-        if ("params_name" in config[item]) is False:
-            sys.stderr.write("ポート名(%s)に、'params_name'キーがありません。"%item)
+        if ("param_name" in config[item]) is False:
+            sys.stderr.write("ポート名(%s)に、'param_name'キーがありません。"%item)
             sys.stderr.flush()
             sys.exit(1)
         if config[item]["bayes_type"] == "target":        # target指定の確認
             if target_dup is True:
-                sys.stderr.write("target 指定が複数ありました。このバージョンは１つのみ許容できます。")
-                sys.stderr.write("ポート名：%s(以前のtarget指定のポート名：%s)"%(item, prev_target))
+                sys.stderr.write("target 指定が複数ありました。このバージョンは１つのみ許容できます。\n")
+                sys.stderr.write("ポート名：%s(以前のtarget指定のポート名：%s)\n"%(item, prev_target))
                 sys.stderr.flush()
                 sys.exit(1)
             else:
                 target_dup = True
                 prev_target = item
+            if ("ratio" in config[item]) is False:        # targetにratioキーが無かった
+                config[item]["ratio"] = ""
+            else:
+                if config[item]["ratio"] == "":
+                    config[item]["ratio"] = 1.0
+                try:                                      # ratio値の確認
+                    value = float(config[item]["ratio"])
+                except:
+                    sys.stderr.write("target の raito 値(%s)が不正です。intかfloatを指定してください。\n"%config[item]["ratio"])
+                    sys.stderr.flush()
+                    sys.exit(1)
+                config[item]["ratio"] = value
         elif config[item]["bayes_type"] == "params":
             pass
         else:
             sys.stderr.write("ポート名(%s)の'bayes_type'に不明なタイプ(%s)が指定されていました。"%(item, config[item]["bayes_type"]))
             sys.stderr.flush()
             sys.exit(1)
+    if target_dup is False:
+        sys.stderr.write("'bayes_type'にtargetの指定がありません。\n")
+        sys.stderr.flush()
+        sys.exit(1)
 
     # CSVファイルの解析
     infile = open(csv_file, "r", encoding=CHARSET_DEF)
@@ -652,11 +668,19 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
                 logout.flush()
                 if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
                     res = session.get(aline[i])
+                    if res.status_code != 200:
+                        print(res.text)
+                        sys.exit(1)
                     tmpval = res.text.replace("\r\n", "\n")
                     if config[headers[i]]["bayes_type"] == "target":
-                        json_line["target"] = float(tmpval.split("\n")[0])
+                        try:
+                            json_line["target"] = float(tmpval.split("\n")[0]) * config[headers[i]]["ratio"]
+                        except:
+                            print(aline[i])
+                            print(res.text)
+                            sys.exit(1)
                     elif config[headers[i]]["bayes_type"] == "params":
-                        json_line["params"][headers[i]] = '"%s": %s'%(config[headers[i]]["params_name"], tmpval.split("\n")[0])
+                        json_line["params"][headers[i]] = '"%s": %s'%(config[headers[i]]["param_name"], tmpval.split("\n")[0])
                     else:
                         logout.write("ランID(%s)、ポート名(%s)のfiletype(%s)は処理できません"%(current_runid, headers[i], config[headers[i]]["bayes_type"]))
                 else:
@@ -675,7 +699,7 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
             else:
                 json_count = 1
                 for key in json_line[item]:
-                    #line_result += '"%s": "%s"'%(config[headers[i]]["params_name"], json_line[item][key])
+                    #line_result += '"%s": "%s"'%(config[headers[i]]["param_name"], json_line[item][key])
                     line_result += "%s"%json_line[item][key]
                     if json_count < len(json_line[item]):
                         line_result += ", "
