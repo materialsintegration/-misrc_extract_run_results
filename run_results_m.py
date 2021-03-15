@@ -93,7 +93,7 @@ class job_get_iourl(threading.Thread):
             if run["status"] in self.run_status:
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
-                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num)
+                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(2.0, 120.0))
                 if ret is False:
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
@@ -409,6 +409,10 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
                 continue
             elif headers[i] == "loop":
                 continue
+            elif headers[i] == "description":
+                continue
+            elif headers[i] == "status":
+                continue
             elif (";" in aline[i]) is False:
                 logout.write("%s - - invalid file contents(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                 continue
@@ -432,6 +436,11 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
                 res = session.get(aline[i])
+                if res.status_code != 200:
+                    logout.write("%s -- failed get data(%s) for run_id:%s(1st)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
+                    res.session.get(aline[i])
+                    if res.status_code != 200:
+                        logout.write("%s -- failed get data(%s) for run_id:%s(2nd)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                 #res = debug_random(-3.0, 3.0)
                 time.sleep(0.05)
                 if config[headers[i]]["filetype"] == "file":
