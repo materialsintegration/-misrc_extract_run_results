@@ -83,12 +83,17 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
 
 必須パラメータ
                mode   : 動作モード。
-                        iourl : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。
-                                各カラムは計算結果データをGPDBへのURLが格納される。
-                        file : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、
-                                機械学習向けのCSVファイルを作成する。 
+                        iourl        : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。
+                                       各カラムは計算結果データをGPDBへのURLが格納される。
+                        file         : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、
+                                       機械学習向けのCSVファイルを作成する。 
+                        pybayes_json : pythonのbayesian_optimization用リスタートファイルを作成する。
                 csv   : iourlモードで作成されるCSVファイルの名前
                         fileモードではiourlモードで作成したCSVとして指定する。
+               table  : iourlで取得したGPDB情報を変換するテーブルの指定
+                        fileモードで自動的に作成されるが、fileモードでこれを指定すると自動作成しない。
+           match_tabl : descriptionに記入した辞書形式のキーおよび値と一致するものを処理するためのテーブル。
+                        詳細はREADME.mdを参照（expriment実装）
                conf   : いくつかのパラメータを書いておける便利な構成ファイル
                         README.mdを参照
 
@@ -97,22 +102,23 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
                token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。
              misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL
               siteid  : siteと＋５桁の数字。site00002など
-              thread  : API呼び出しの並列数（デフォルト10個）
              usecash  : 次回以降キャッシュから読み込みたい場合に指定する。
                         未指定で実行すればキャッシュは作成される。
           run_status  : CSV出力対象のランステータス。カンマ区切りで複数指定可能。
                         未指定で実行すればcompletedのみ対象とする。
 
      mode を fileと指定したとき
-               table  : iourlで取得したGPDB情報を変換するテーブルの指定
                 dat   : fileモードで作成される結果ファイル。機械学習用
+     mode を pybayes_jsonと指定したとき
+                json  : basian_optimization用のリロードファイル名の指定
+
 非必須のパラメータ
-            runlist   : modeがiourlの時に指定する。
+              thread  : API呼び出しの並列数（デフォルト10個）
+             runlist  : modeがiourlの時に指定する。
                         workflow_execute.pyが出力するランリスト。
                         空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。
                         このランリストに該当するランのみを処理対象とする。
                         指定が無い場合は該当する全ランが対象となる。
-
 ```
 
 ## 失敗が続く場合
