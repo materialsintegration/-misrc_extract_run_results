@@ -27,6 +27,7 @@ from workflow_iourl import *
 # 文字コード
 CHARSET_DEF = 'utf-8'
 
+counter_bar = ""
 
 class debug_struct(object):
     '''
@@ -48,6 +49,22 @@ def debug_random(from_value, to_value):
     d.text = random.uniform(from_value, to_value)
 
     return d
+
+def counterBar(count, nperiod, lines):
+    '''
+    カウンターバー進捗表示の更新
+    @param count(int)
+    @param nperiod(int)
+    @param lines(int)
+    @retval なし
+    '''
+
+    global counter_bar
+
+    if (count % nperiod) == 0:
+        counter_bar = counter_bar.replace("-", "*", 1)
+        sys.stdout.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
+        sys.stdout.flush()
 
 class job_get_iourl(threading.Thread):
     '''
@@ -114,9 +131,21 @@ class job_get_iourl(threading.Thread):
         self.results[threading.current_thread().name] = results
 
 
-def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list, run_status):
+def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status):
     '''
     まずはGPDBからファイルの実体を取得するIOURLを取得し、CSVを作成する。
+    @param token(string)
+    @param url(string)
+    @param siteid(string)
+    @param workflow_id(string)
+    @param csv_file(string)
+    @param tablefile(string)
+    @param result(string)
+    @param thread_num(int)
+    @param load_cash(bool)
+    @param run_list(list)
+    @param run_status(string)
+    @retval なし
     '''
     # キャッシュを使う指定だが、キャッシュが無い場合、リスト取得へ
     if load_cash is True:
@@ -199,28 +228,31 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                     if (item in headers) is False:
                         headers.append(item)
 
-    print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
-    outfile = open("table_template.tbl", "w", encoding=CHARSET_DEF)
-    outfile.write("{\n")
-    outflg = False
-    for i in range(len(headers)):
-    #for item in headers:
-        if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status":
-        #if item == "loop":
-            continue
-        #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
-        if outflg:
-            outfile.write(",\n")
-        # ===> 2021/03/02 JSON変換用にキーを増やす
-        #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
-        outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":"", "bayes_type":"params", "param_name":"", "ratio":""}'%headers[i])
-        # <=== 2021/03/02
-
-        outflg = True
-        # if i < len(headers) - 1:
-        #     outfile.write(",\n")
-    outfile.write("\n}\n")
-    outfile.close()
+    if tablefile is not None:
+        print("%s - tableファイルは作成しません。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    else:
+        print("%s - tableファイルを作成しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+        outfile = open("table_template.tbl", "w", encoding=CHARSET_DEF)
+        outfile.write("{\n")
+        outflg = False
+        for i in range(len(headers)):
+        #for item in headers:
+            if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status":
+            #if item == "loop":
+                continue
+            #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
+            if outflg:
+                outfile.write(",\n")
+            # ===> 2021/03/02 JSON変換用にキーを増やす
+            #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""}'%headers[i])
+            outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":"", "bayes_type":"params", "param_name":"", "ratio":""}'%headers[i])
+            # <=== 2021/03/02
+    
+            outflg = True
+            # if i < len(headers) - 1:
+            #     outfile.write(",\n")
+        outfile.write("\n}\n")
+        outfile.close()
 
     print("%s - ヘッダーは以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     outfile = open(csv_file, "w", encoding=CHARSET_DEF)
@@ -246,6 +278,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
     #print("%s"%str(results))
     outfile.write("\n")
     out_dat = []
+    excluded_num = 0
     for thread in results:
         for items in results[thread]:
             for item in items:
@@ -259,6 +292,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
                 if isNoPorts is True:                               # 不完全なポートがあった
                     sys.stderr.write("ランID(R%s)はポート情報が不完全なのでリストから除外します。\n"%item[1:])
                     sys.stderr.flush()
+                    excluded_num += 1
                     continue                                        # 次のランの処理へ
                 for key in headers:
                     #print(item)
@@ -298,6 +332,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, 
 
     outfile.close()
     print("%s - データファイル(CSV)を構築終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    if excluded_num != 0:
+        print("%s - 除外されたデータは %d 個ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), excluded_num))
     print("%s - 予想される各パラメータのデータ量は以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     units=["byte", "kbyte", "Mbyte", "Gbyte", "Tbyte"]
     for item in total_file_amount:
@@ -320,6 +356,8 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     @param workflow_id (string) テンプレートファイル内のdefaultがNoneで無い場合に使用するワークフローID
     @param siteid (string) 同、サイトID
     '''
+
+    global counter_bar
 
     # セッション
     session = requests.Session()
@@ -380,8 +418,8 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     counter_bar = "-"
     for i in range(79):
         counter_bar += "-"
-    sys.stderr.write("\r%s"%counter_bar)
-    sys.stderr.flush()
+    sys.stdout.write("\r%s"%counter_bar)
+    sys.stdout.flush()
     if len(lines) > 80:
         nperiod = int(len(lines) / 80)
     else:
@@ -480,15 +518,16 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
             else:
                 outfile.write(",%s"%csv_line[results_order[i]])
         outfile.write("\n")
-        if (count % nperiod) == 0:
-            counter_bar = counter_bar.replace("-", "*", 1)
-            sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
-            sys.stderr.flush()
+        #if (count % nperiod) == 0:
+        #    counter_bar = counter_bar.replace("-", "*", 1)
+        #    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
+        #    sys.stderr.flush()
+        counterBar(count, nperiod, lines)
         count += 1
 
     outfile.close()
-    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
-    sys.stderr.flush()
+    sys.stdout.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
+    sys.stdout.flush()
     logout.close()
     session.close()
     print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -716,15 +755,16 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
         line_result += "}}"
         #outfile.write("%s\n"%str(json_line))
         outfile.write("%s\n"%line_result)
-        if (count % nperiod) == 0:
-            counter_bar = counter_bar.replace("-", "*", 1)
-            sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
-            sys.stderr.flush()
+        #if (count % nperiod) == 0:
+        #    counter_bar = counter_bar.replace("-", "*", 1)
+        #    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count, len(lines)))
+        #    sys.stderr.flush()
+        counterBar(count, nperiod, lines)
         count += 1
 
     outfile.close()
-    sys.stderr.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
-    sys.stderr.flush()
+    sys.stdout.write("\r%s [%d/%d]"%(counter_bar, count - 1, len(lines)))
+    sys.stdout.flush()
     logout.close()
     session.close()
     print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -914,6 +954,10 @@ def main():
         print("                        pybayes_json : pythonのbayesian_optimization用リスタートファイルを作成する。")
         print("                csv   : iourlモードで作成されるCSVファイルの名前")
         print("                        fileモードではiourlモードで作成したCSVとして指定する。")
+        print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
+        print("                        fileモードで自動的に作成されるが、fileモードでこれを指定すると自動作成しない。")
+        print("           match_tabl : descriptionに記入した辞書形式のキーおよび値と一致するものを処理するためのテーブル。")
+        print("                        詳細はREADME.mdを参照（expriment実装）")
         print("               conf   : いくつかのパラメータを書いておける便利な構成ファイル")
         print("                        README.mdを参照")
         print("")
@@ -922,20 +966,19 @@ def main():
         print("               token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。")
         print("             misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL")
         print("              siteid  : siteと＋５桁の数字。site00002など")
-        print("              thread  : API呼び出しの並列数（デフォルト10個）")
         print("             usecash  : 次回以降キャッシュから読み込みたい場合に指定する。")
         print("                        未指定で実行すればキャッシュは作成される。")
         print("          run_status  : CSV出力対象のランステータス。カンマ区切りで複数指定可能。")
         print("                        未指定で実行すればcompletedのみ対象とする。")
         print("")
         print("     mode を fileと指定したとき")
-        print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
         print("                dat   : fileモードで作成される結果ファイル。機械学習用")
         print("     mode を pybayes_jsonと指定したとき")
-        print("               table  : iourlで取得したGPDB情報を変換するテーブルの指定")
         print("                json  : basian_optimization用のリロードファイル名の指定")
+        print("")
         print("非必須のパラメータ")
-        print("            runlist   : modeがiourlの時に指定する。")
+        print("              thread  : API呼び出しの並列数（デフォルト10個）")
+        print("             runlist  : modeがiourlの時に指定する。")
         print("                        workflow_execute.pyが出力するランリスト。")
         print("                        空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。")
         print("                        このランリストに該当するランのみを処理対象とする。")
@@ -947,7 +990,7 @@ def main():
         thread_num = 20
 
     if run_mode == "iourl":
-        generate_csv(token, url, siteid, workflow_id, csv_file, result, thread_num, load_cash, run_list, run_status)
+        generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status)
     elif run_mode == "file":
         generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid)
     elif run_mode == "pybayes_json":
