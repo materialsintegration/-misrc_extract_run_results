@@ -141,7 +141,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     @param csv_file(string)
     @param tablefile(string)
     @param result(string)
-    @param thread_num(int)
+    @param thread_num(int) 並列数指定（デフォルト10）
     @param load_cash(bool)
     @param run_list(list)
     @param run_status(string)
@@ -347,7 +347,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
 
     csv_log.close()
 
-def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
+def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid="", thread_num=1):
     '''
     generete_csvで作成されたcsv_fileをconffileの設定に従い、dat_fileに再構成する。
     @param conffile (string) テンプレートファイル名
@@ -532,7 +532,7 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid=""):
     session.close()
     print("\n%s - 内容を取り出し終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
 
-def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", siteid=""):
+def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", siteid="", thread_num=1):
     '''
     generete_csvで作成されたcsv_fileをconffileの設定に従い、json_fileに再構成する。
     @param conffile (string) テンプレートファイル名
@@ -542,6 +542,8 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
     @param workflow_id (string) テンプレートファイル内のdefaultがNoneで無い場合に使用するワークフローID
     @param siteid (string) 同、サイトID
     '''
+
+    global counter_bar
 
     # セッション
     session = requests.Session()
@@ -640,8 +642,8 @@ def generate_json(conffile, csv_file, json_file, rename_table, workflow_id="", s
     counter_bar = "-"
     for i in range(79):
         counter_bar += "-"
-    sys.stderr.write("\r%s"%counter_bar)
-    sys.stderr.flush()
+    sys.stdout.write("\r%s"%counter_bar)
+    sys.stdout.flush()
     if len(lines) > 80:
         nperiod = int(len(lines) / 80)
     else:
@@ -813,7 +815,9 @@ def main():
             try:
                 thread_num = int(items[1])
             except:
-                therad_num = 10
+                print("並列数の指定(%s)が異常です。デフォルトの１０を指定します。"%items[1])
+                #therad_num = 10
+                pass
         elif items[0] == "usecash":             # ランリストのキャッシュを使う
             load_cash = True
         elif items[0] == "run_status":          # ランステータス
@@ -987,14 +991,15 @@ def main():
 
     # Thread上限は20とする。
     if thread_num >= 20:
+        print("並列実行の上限は20です。")
         thread_num = 20
 
     if run_mode == "iourl":
         generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status)
     elif run_mode == "file":
-        generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid)
+        generate_dat(tablefile, csv_file, dat_file, workflow_id, siteid, thread_num)
     elif run_mode == "pybayes_json":
-        generate_json(tablefile, csv_file, json_file, rename_table, workflow_id, siteid)
+        generate_json(tablefile, csv_file, json_file, rename_table, workflow_id, siteid, thread_num)
 
 if __name__ == '__main__':
     main()
