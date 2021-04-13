@@ -110,7 +110,7 @@ class job_get_iourl(threading.Thread):
             if run["status"] in self.run_status:
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
-                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(2.0, 120.0))
+                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(2.0, 300.0))
                 if ret is False:
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
@@ -333,7 +333,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     outfile.close()
     print("%s - データファイル(CSV)を構築終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     if excluded_num != 0:
-        print("%s - 除外されたデータは %d 個ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), excluded_num))
+        print("%s - 除外されたランは %d 個ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), excluded_num))
     print("%s - 予想される各パラメータのデータ量は以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     units=["byte", "kbyte", "Mbyte", "Gbyte", "Tbyte"]
     for item in total_file_amount:
