@@ -465,10 +465,13 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid="", thread
                     logout.write("%s - - invalid URL found(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                     logout.flush()
                     break
-                if config[headers[i]]["filetype"] == "file":
-                    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
-                else:
-                    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "wb")
+                #==> 2021/04/14 Y.Manaka 取得するファイルはすべてこの形式でよい
+                #if config[headers[i]]["filetype"] == "file":
+                #    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "w", encoding=CHARSET_DEF)
+                #else:
+                #    dataout = open("%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "wb")
+                dataout = open("R%s_%s.%s"%(aline[0], headers[i], config[headers[i]]["ext"]), "wb")
+                #<== 2021/04/14 Y.Manaka
                 #outfile.write("%s_%s,"%(aline[0], headers[i]))
                 #csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
                 logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
@@ -481,10 +484,13 @@ def generate_dat(conffile, csv_file, dat_file, workflow_id="", siteid="", thread
                         logout.write("%s -- failed get data(%s) for run_id:%s(2nd)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                 #res = debug_random(-3.0, 3.0)
                 time.sleep(0.05)
-                if config[headers[i]]["filetype"] == "file":
-                    dataout.write(res.text)
-                else:
-                    dataout.write(res.content)
+                #==> 2021/04/14 Y.Manaka 取得するファイルはすべてこの形式でよい
+                #if config[headers[i]]["filetype"] == "file":
+                #    dataout.write(res.text)
+                #else:
+                #    dataout.write(res.content)
+                dataout.write(res.content)
+                #<== 2021/04/14 Y.Manaka
                 dataout.close()
             elif config[headers[i]]["filetype"] == "csv":   # スカラー値なのでCSVを取得した値で、構成する。
                 if ("values" in aline[i]) is False:         # URLが不完全？
