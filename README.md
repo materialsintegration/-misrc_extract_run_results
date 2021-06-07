@@ -13,6 +13,7 @@
 * 環境名
 * siteID
 * 入出力情報の変換対応テーブル
+* APIバージョン情報
 
 あれば便利または詳細な指定が可能なファイル。
 * 絞り込み用ラン一覧リスト
@@ -80,7 +81,6 @@ $ python3.6 ~/extract_run_results/run_results_m.py mode:file csv:results.csv tab
 ワークフローIDの計算結果データを取得する。
 
 Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id:Mxxxx token:yyyy misystem:URL mode:[iourl/file] [options]
-
 必須パラメータ
                mode   : 動作モード。
                         iourl        : 入出力名をヘッダーとしたランIDごとのCSVファイルを作成する。
@@ -88,6 +88,8 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
                         file         : iourlモードで作成したテーブルと別途用意した構成ファイルを使い、
                                        機械学習向けのCSVファイルを作成する。 
                         pybayes_json : pythonのbayesian_optimization用リスタートファイルを作成する。
+               token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。
+             misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL
                 csv   : iourlモードで作成されるCSVファイルの名前
                         fileモードではiourlモードで作成したCSVとして指定する。
                table  : iourlで取得したGPDB情報を変換するテーブルの指定
@@ -99,8 +101,6 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
 
      mode を iourlと指定したとき
           workflow_id : Wで始まる15桁のワークフローID
-               token  : 64文字のAPIトークン。指定しない場合ログイン問い合わせとなる。
-             misystem : dev-u-tokyo.mintsys.jpのようなMIntシステムのURL
               siteid  : siteと＋５桁の数字。site00002など
              usecash  : 次回以降キャッシュから読み込みたい場合に指定する。
                         未指定で実行すればキャッシュは作成される。
@@ -119,6 +119,7 @@ Usage:  $ python /home/misystem/extract_run_results/run_results_m.py workflow_id
                         空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。
                         このランリストに該当するランのみを処理対象とする。
                         指定が無い場合は該当する全ランが対象となる。
+            version   : ワークフローAPIのバージョン指定（デフォルト v3）
 ```
 
 ## 失敗が続く場合
