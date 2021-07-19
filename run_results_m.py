@@ -116,7 +116,7 @@ class job_get_iourl(threading.Thread):
             if run["status"] in self.run_status:
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
-                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(2.0, 300.0), version=self.api_version)
+                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(5.0, 300.0), version=self.api_version)
                 if ret is False:
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
@@ -1035,9 +1035,9 @@ def main():
         sys.exit(1)
 
     # Thread上限は20とする。
-    if thread_num >= 20:
-        print("並列実行の上限は20です。")
-        thread_num = 20
+    #if thread_num >= 20:
+    #    print("並列実行の上限は20です。")
+    #    thread_num = 20
 
     if run_mode == "iourl":
         generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status, version)
