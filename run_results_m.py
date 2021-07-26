@@ -82,16 +82,17 @@ class job_get_iourl(threading.Thread):
         '''
 
         threading.Thread.__init__(self, group=group, target=target, name=name, daemon=daemon)
-        self.token = args[0]
-        self.url = args[1]
-        self.siteid = args[2]
-        self.runlist = args[3]
-        self.thread_num = args[4]
-        self.result = args[5]
-        self.results = args[6]
-        self.csv_log = args[7]
-        self.run_status = args[8]
-        self.api_version = args[9]
+        self.token = args[0]                # APIトークン
+        self.url = args[1]                  # URL(エンドポイント除く)
+        self.siteid = args[2]               # site ID
+        self.runlist = args[3]              # ランID（複数可）
+        self.thread_num = args[4]           # threadingによる並列数
+        self.result = args[5]               # 実行時表示の制御フラグ
+        self.results = args[6]              # 出力先のファイル名
+        self.csv_log = args[7]              # 標準出力のファイルディスクリプタ
+        self.run_status = args[8]           # 出力対象のランステータスの指示
+        self.api_version = args[9]          # ワークフローAPIのバージョン指定
+        self.timeout = args[10]             # sessionのタイムアウト指定（tuple）
         self.list_num = len(self.runlist)
         self.status = {"canceled":"キャンセル", "failure":"起動失敗", "running":"実行中",
                        "waiting":"待機中", "paused":"一時停止", "abend":"異常終了"}
@@ -116,7 +117,8 @@ class job_get_iourl(threading.Thread):
             if run["status"] in self.run_status:
                 self.csv_log.write("%s -- %03d : %sのランIDを処理中\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"]))
                 self.csv_log.flush()
-                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(5.0, 300.0), version=self.api_version)
+                #ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=(5.0, 300.0), version=self.api_version)
+                ret, ret_dict = get_runiofile(self.token, self.url, self.siteid, run["run_id"], self.result, thread_num=self.thread_num, timeout=self.timeout, version=self.api_version)
                 if ret is False:
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
@@ -137,7 +139,7 @@ class job_get_iourl(threading.Thread):
         self.results[threading.current_thread().name] = results
 
 
-def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status, version="v3"):
+def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status, version="v3", timeout=(5.0, 300.0)):
     '''
     まずはGPDBからファイルの実体を取得するIOURLを取得し、CSVを作成する。
     @param token(string)
@@ -159,8 +161,10 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
         if os.path.exists("run_result_cash.dat") is False:
             load_cash = False
 
+    start_time = datetime.datetime.now()
     if load_cash is False:
-        print("%s - ワークフローID(%s)の全ランのリストを取得します。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), workflow_id))
+        sys.stdout.write("%s - ワークフローID(%s)の全ランのリストを取得します。\n"%(start_time.strftime("%Y/%m/%d %H:%M:%S"), workflow_id))
+        sys.stdout.flush()
         retval, ret = get_runlist(token, url, siteid, workflow_id, True, version=version)
         if retval is False:
             print("%s - ラン一覧の取得に失敗しました。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
@@ -169,9 +173,10 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
         outfile = open("run_result_cash.dat", "wb")
         pickle.dump(ret, outfile)
         outfile.close()
-        print("%s - 全ランのリストをキャッシュファイルに保存しました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
+        sys.stdout.write("%s - 全ランのリストをキャッシュファイルに保存しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
+        sys.stdout.flush()
     else:
-        print("%s - 全ランのリストをキャッシュファイルから取り出します。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
+        print("%s - 全ランのリストをキャッシュファイルから取り出します。"%(start_time.strftime("%Y/%m/%d %H:%M:%S")))
         infile = open("run_result_cash.dat", "rb")
         ret = pickle.load(infile)
         infile.close()
@@ -194,7 +199,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
                     break
         ret = newlist
 
-    print("%s - 対象となるランは %d ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
+    sys.stdout.write("%s - 対象となるランは %d ありました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), len(ret)))
+    sys.stdout.flush()
     periodn = int(len(ret) / 80)
     results = []
     i = 1
@@ -212,7 +218,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
             runlist = ret[init:num1]
         init += num
         num1 += num
-        t = job_get_iourl(args=(token, url, siteid, runlist, i + 1, result, results, csv_log, run_status, version))
+        t = job_get_iourl(args=(token, url, siteid, runlist, i + 1, result, results, csv_log, run_status, version, timeout))
         ths.append(t)
         t.start()
         time.sleep(1)
@@ -221,7 +227,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     for th in ths:
         th.join()
 
-    print("%s - ヘッダーとなる入出力ポート名を取り出しています。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    sys.stdout.write("%s - ヘッダーとなる入出力ポート名を取り出しています。\n"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    sys.stdout.flush()
     threads = list(results.keys())
     #sys.stderr.write("%s\n"%str(threads))
     headers = []
@@ -244,7 +251,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
         outflg = False
         for i in range(len(headers)):
         #for item in headers:
-            if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status":
+            if headers[i] == "loop" or headers[i] == "description" or headers[i] == "status" or headers[i] == "elapsed":
             #if item == "loop":
                 continue
             #outfile.write('"%s":{"filetype":"csv", "default":"None", "ext":""},\n'%item)
@@ -272,7 +279,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
         out_dat.append(item)
         sys.stderr.write("%s\n"%item)
         sys.stderr.flush()
-        if item != "loop" and item != "description" and item != "status":
+        if item != "loop" and item != "description" and item != "status" and item != "elapsed":
             total_file_amount[item] = 0
     outfile.write(','.join(out_dat))
 
@@ -317,6 +324,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
                             out_dat.append(' '.join(items[item][key].replace(',', ' ').splitlines()))
                         elif key == "status":
                             out_dat.append(items[item][key])
+                        elif key == "elapsed":
+                            out_dat.append(items[item][key])
                         else:
                             if items[item][key][0] == "null":
                                 # outfile.write("null:0")
@@ -341,7 +350,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     print("%s - データファイル(CSV)を構築終了。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     if excluded_num != 0:
         print("%s - 除外されたランは %d 個ありました。"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), excluded_num))
-    print("%s - 予想される各パラメータのデータ量は以下のとおりです。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
+    end_time = datetime.datetime.now()
+    print("%s - 予想される各パラメータのデータ量は以下のとおりです。"%end_time.strftime("%Y/%m/%d %H:%M:%S"))
     units=["byte", "kbyte", "Mbyte", "Gbyte", "Tbyte"]
     for item in total_file_amount:
         amount = total_file_amount[item]
@@ -353,6 +363,8 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
         print("%s - %.2f(%s)"%(item, amount, units[units_count]))
 
     csv_log.close()
+    sys.stdout.write("%s - 処理時間は%sでした。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), end_time - start_time))
+    sys.stdout.flush()
 
 def generate_dat(conffile, csv_file, dat_file, token, workflow_id="", siteid="", thread_num=1):
     '''
@@ -462,6 +474,8 @@ def generate_dat(conffile, csv_file, dat_file, token, workflow_id="", siteid="",
             elif headers[i] == "description":
                 continue
             elif headers[i] == "status":
+                continue
+            elif headers[i] == "elapsed":
                 continue
             elif (";" in aline[i]) is False:
                 logout.write("%s - - invalid file contents(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
@@ -700,6 +714,12 @@ def generate_json(conffile, csv_file, json_file, rename_table, token, workflow_i
                 continue
             elif headers[i] == "loop":
                 continue
+            elif headers[i] == "description":
+                continue
+            elif headers[i] == "status":
+                continue
+            elif headers[i] == "elapsed":
+                continue
             elif (";" in aline[i]) is False:
                 logout.write("%s - - invalid file contents(%s) at RunID(%s); skipped\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                 continue
@@ -829,6 +849,7 @@ def main():
     json_file = None
     rename_table = {}
     version = "v3"
+    timeout = (5.0, 300.0)
     global STOP_FLAG
 
     for items in sys.argv:
@@ -876,6 +897,8 @@ def main():
             json_file = items[1]
         elif items[0] == "version":             # APIバージョン指定
             version = items[1]
+        elif items[0] == "timeout":             # タイムアウトの指定
+            timeout = tuple(items[1].split(","))
         else:
             print("unknown paramter(%s)"%items[0])
 
@@ -894,6 +917,8 @@ def main():
     if config is not None:
         if ("version" in config) is True:
             version = config["version"]
+        if ("timeout" in config) is True:
+            timeout = tuple(config["timeout"].split(","))
         if run_mode == "iourl":
             if ("token" in config) is True:
                 token = config["token"]
@@ -1031,7 +1056,9 @@ def main():
         print("                        空白区切りで4カラム目にIDがあれば他はどうなっていても問題無し。")
         print("                        このランリストに該当するランのみを処理対象とする。")
         print("                        指定が無い場合は該当する全ランが対象となる。")
-        print("            version   : ワークフローAPIのバージョン指定（デフォルト v3）")
+        print("             version  : ワークフローAPIのバージョン指定（デフォルト v3）")
+        print("             timeout  : タイムアウトの設定。socket通信のsendとrecvの２値をカンマで指定")
+        print("                        デフォルトは５秒と３００秒")
         sys.exit(1)
 
     # Thread上限は20とする。
@@ -1040,7 +1067,7 @@ def main():
     #    thread_num = 20
 
     if run_mode == "iourl":
-        generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status, version)
+        generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, thread_num, load_cash, run_list, run_status, version, timeout)
     elif run_mode == "file":
         generate_dat(tablefile, csv_file, dat_file, token, workflow_id, siteid, thread_num)
     elif run_mode == "pybayes_json":
