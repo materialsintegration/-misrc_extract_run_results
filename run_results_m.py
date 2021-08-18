@@ -162,6 +162,10 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
             load_cash = False
 
     start_time = datetime.datetime.now()
+
+    sys.stdout.write("%s - 入出力ファイル一覧を取得し、入出力ポートのURLを取得します。\n"%start_time.strftime("%Y/%m/%d %H:%M:%S"))
+    sys.stdout.write("%s - 並列数は %d / タイムアウトは(recv, send)=%s\n"%(start_time.strftime("%Y/%m/%d %H:%M:%S"), thread_num, str(timeout)))
+    sys.stdout.flush()
     if load_cash is False:
         sys.stdout.write("%s - ワークフローID(%s)の全ランのリストを取得します。\n"%(start_time.strftime("%Y/%m/%d %H:%M:%S"), workflow_id))
         sys.stdout.flush()
@@ -898,7 +902,11 @@ def main():
         elif items[0] == "version":             # APIバージョン指定
             version = items[1]
         elif items[0] == "timeout":             # タイムアウトの指定
-            timeout = tuple(items[1].split(","))
+            if len(items[1].split(",")) == 2:
+                try:
+                    timeout = (float(items[1].split(",")[0]), float(items[1].split(",")[1]))
+                except:
+                    pass
         else:
             print("unknown paramter(%s)"%items[0])
 
@@ -918,7 +926,11 @@ def main():
         if ("version" in config) is True:
             version = config["version"]
         if ("timeout" in config) is True:
-            timeout = tuple(config["timeout"].split(","))
+            if len(config["timeout"].split(",")) == 2:
+                try:
+                    timeout = (float(config["timeout"].split(",")[0]), float(config["timeout"].split(",")[1]))
+                except:
+                    pass
         if run_mode == "iourl":
             if ("token" in config) is True:
                 token = config["token"]
