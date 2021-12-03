@@ -520,18 +520,18 @@ def generate_dat(conffile, csv_file, dat_file, token, workflow_id="", siteid="",
                 #<== 2021/04/14 Y.Manaka
                 #outfile.write("%s_%s,"%(aline[0], headers[i]))
                 #csv_line += "%s_%s.%s,"%(aline[0], headers[i], config[headers[i]]["ext"])
-                logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
+                logout.write("%s - - getting file contents for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
                 if api_type == "gpdb-api":
-                    res = session.get(aline[i])
+                    res = session.get(item1)
                 else:
-                    res = session.get(aline[i], headers=headers_for_assetapi)
+                    res = session.get(item1, headers=headers_for_assetapi)
                 if res.status_code != 200:
                     logout.write("%s -- failed get data(%s) for run_id:%s(1st)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                     if api_type == "gpdb-api":
-                        res.session.get(aline[i])
+                        res = session.get(item1)
                     else:
-                        res.session.get(aline[i], headers=headers_for_assetapi)
+                        res = session.get(item1, headers=headers_for_assetapi)
                     if res.status_code != 200:
                         logout.write("%s -- failed get data(%s) for run_id:%s(2nd)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), aline[i], current_runid))
                 #res = debug_random(-3.0, 3.0)
@@ -550,10 +550,13 @@ def generate_dat(conffile, csv_file, dat_file, token, workflow_id="", siteid="",
                     logout.flush()
                     break
                     break
-                logout.write("%s - - getting file contents for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
+                logout.write("%s - - getting scalar value for run_id:%s\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), current_runid))
                 logout.flush()
                 if config[headers[i]]["default"] == "None":  # GPDB URLに従って値を取得
-                    res = session.get(aline[i])
+                    if api_type == "gpdb-api":
+                        res = session.get(item1)
+                    else:
+                        res = session.get(item1, headers=headers_for_assetapi)
                     #csv_line += "%s,"%res.text.split("\n")[0]
                     #csv_line[headers[i]] = "%s"%res.text.split("\n")[0]
                     tmpval = res.text.replace("\r\n", "\n")
