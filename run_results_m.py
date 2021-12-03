@@ -96,6 +96,8 @@ class job_get_iourl(threading.Thread):
         self.list_num = len(self.runlist)
         self.status = {"canceled":"キャンセル", "failure":"起動失敗", "running":"実行中",
                        "waiting":"待機中", "paused":"一時停止", "abend":"異常終了"}
+        self.fail_count = 0
+        self.noprocess_count = 0
 
     def run(self):
         '''
@@ -122,19 +124,22 @@ class job_get_iourl(threading.Thread):
                 if ret is False:
                     self.csv_log.write(ret_dict)
                     self.csv_log.flush()
+                    self.fail_count += 1
                     continue
                 ret_dict[run["run_id"]]["description"] = run["description"]
                 ret_dict[run["run_id"]]["status"] = run["status"]
                 results.append(ret_dict)
             else:
-                print("ラン番号(%s)は実行完了していない(%s)ので、処理しません。"%(run["run_id"], self.status[run["status"]]))
+                sys.stderr.write("ラン番号(%s)は実行完了していない(%s)ので、処理しません。\n"%(run["run_id"], self.status[run["status"]]))
+                sys.stderr.flush()
                 self.csv_log.write("%s -- %03d : ラン番号(%s)は実行完了していない(%s)ので、処理しません。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, run["run_id"], self.status[run["status"]]))
                 self.csv_log.flush()
+                self.noprocess_count += 1
                 continue
 
-        sys.stdout.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
+        sys.stdout.write("%s -- %03d : %d 個処理終了しました。(処理失敗(%d)/未処理(%d))\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num, self.fail_count, self.noprocess_count))
         sys.stdout.flush()
-        self.csv_log.write("%s -- %03d : %d 個処理終了しました。\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num))
+        self.csv_log.write("%s -- %03d : %d 個処理終了しました。(処理失敗(%d)/未処理(%d))\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), self.thread_num, self.list_num, self.fail_count, self.noprocess_count))
         self.csv_log.flush()
         self.results[threading.current_thread().name] = results
 
@@ -169,7 +174,7 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     if load_cash is False:
         sys.stdout.write("%s - ワークフローID(%s)の全ランのリストを取得します。\n"%(start_time.strftime("%Y/%m/%d %H:%M:%S"), workflow_id))
         sys.stdout.flush()
-        retval, ret = get_runlist(token, url, siteid, workflow_id, True, version=version)
+        retval, ret = get_runlist(token, url, siteid, workflow_id, True, version=version, timeout=timeout)
         if retval is False:
             print("%s - ラン一覧の取得に失敗しました。"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
             sys.exit(1)
@@ -231,6 +236,15 @@ def generate_csv(token, url, siteid, workflow_id, csv_file, tablefile, result, t
     for th in ths:
         th.join()
 
+    # 処理数の詳細
+    total_fail = 0
+    total_noprocess = 0
+    for th in ths:
+        total_fail += th.fail_count
+        total_noprocess += th.noprocess_count
+
+    sys.stdout.write("%s - TimeoutやInternal Server Errorで処理に失敗した総数(%d)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), total_fail))
+    sys.stdout.write("%s - (起動失敗やキャンセルで処理できなかった総数(%d)\n"%(datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"), total_noprocess))
     sys.stdout.write("%s - ヘッダーとなる入出力ポート名を取り出しています。\n"%datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"))
     sys.stdout.flush()
     threads = list(results.keys())
@@ -853,7 +867,7 @@ def main():
     json_file = None
     rename_table = {}
     version = "v3"
-    timeout = (5.0, 300.0)
+    timeout = (5.0, 60.0)
     global STOP_FLAG
 
     for items in sys.argv:
@@ -913,6 +927,9 @@ def main():
     # パラメータ構成ファイルの読み込み
     config = None
     if conf_file is not None:
+        if os.path.exists(conf_file) is False:
+            sys.stderr.write("構成ファイルが指定されましたが見つかりませんでした。(%s)\n"%conf_file)
+            sys.exit(1)
         sys.stderr.write("パラメータを構成ファイル(%s)から読み込みます。\n"%conf_file)
         infile = open(conf_file, "r", encoding=CHARSET_DEF)
         try:
