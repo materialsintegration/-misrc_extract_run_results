@@ -19,6 +19,7 @@ import requests
 import random
 import time
 import json
+import signal
 
 sys.path.append("/home/misystem/assets/modules/workflow_python_lib")
 from workflow_runlist import *
@@ -967,6 +968,8 @@ def main():
             if ("run_status" in config) is True:
                 run_status = [s.strip() for s in config["run_status"].split(',')]
         elif run_mode == "file":
+            if ("token" in config) is True:
+                token = config["token"]
             if ("csv" in config) is True:
                 csv_file = config["csv"]
             if ("table" in config) is True:
